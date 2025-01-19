@@ -1,0 +1,75 @@
+name: "Build & deploy for Android, Linux, Web and Windows"
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build_linux:
+    name: Build and release Linux app
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+        include:
+        - label: x86_64
+          os: ubuntu-latest
+        - label: aarch64
+          os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install missing packages
+      run: |
+        sudo add-apt-repository universe
+        sudo apt-get update
+        sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        cache: true
+
+    - name: Flutter version
+      run: flutter --version
+
+    - name: Bootstrap
+      run: |
+        dart pub global activate melos
+        melos bootstrap
+
+    - name: Build for linux
+      run: flutter build linux --release
+
+    - name: See built file
+      run: ls build/linux
+
+    - name: Tar linux package
+      run: tar -C build/linux/x64/release/bundle -czf converternow-linux-${{ matrix.label }}.tar.gz .
+
+    - name: Build appimage
+      run: |
+        wget https://github.com/AppImage/appimagetool/releases/latest/download/appimagetool-${{ matrix.label }}.AppImage
+        chmod +x appimagetool-${{ matrix.label }}.AppImage
+        mkdir ConverterNOW.AppDir
+        cp -r build/linux/x64/release/bundle/* ConverterNOW.AppDir
+        cp assets/app_icons/logo.svg ConverterNOW.AppDir
+        echo -e '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./converternow' > ConverterNOW.AppDir/AppRun
+        chmod +x ConverterNOW.AppDir/AppRun
+        cp snap/gui/converternow.desktop ConverterNOW.AppDir
+        desktop-file-edit --set-icon="logo" --set-key="Exec" --set-value="converternow %u" ConverterNOW.AppDir/converternow.desktop
+        ./appimagetool-${{ matrix.label }}.AppImage ConverterNOW.AppDir
+
+    - name: Release to GitHub
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "converternow-linux-${{ matrix.label }}.tar.gz,Converter_NOW-${{ matrix.label }}.AppImage"
+        token: ${{ secrets.GH_TOKEN }}
+        tag: ${{ steps.version.outputs.content }}
+        commit: ${{ github.sha }}
+        allowUpdates: true
