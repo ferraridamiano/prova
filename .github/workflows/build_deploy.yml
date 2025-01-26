@@ -27,7 +27,7 @@ jobs:
       run: |
         sudo add-apt-repository universe
         sudo apt-get update
-        sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+        sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev desktop-file-utils
 
     - name: Setup Flutter
       run: sudo snap install flutter --classic --channel latest/stable
